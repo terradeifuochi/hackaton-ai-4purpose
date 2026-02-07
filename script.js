@@ -30,8 +30,14 @@ let myChart = new Chart(ctx, {
         maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-            y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
-            x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
+            y: { 
+                grid: { color: '#334155' }, 
+                ticks: { color: '#94a3b8' } 
+            },
+            x: { 
+                grid: { display: false }, 
+                ticks: { color: '#94a3b8' } 
+            }
         }
     }
 });
@@ -56,6 +62,10 @@ async function scaricaDatiDaPython() {
         
         const windEl = document.getElementById('wind-val');
         if(windEl) windEl.innerText = data.live.vento + " km/h";
+
+        // Probabilità Pioggia (Nuovo)
+        const rainEl = document.getElementById('rain-val');
+        if(rainEl) rainEl.innerText = data.live.pioggia_prob + "%";
         
         // --- B. AGGIORNAMENTO TESTO AI ---
         document.getElementById('ai-text').innerText = '"' + data.ia_advice + '"';
@@ -157,4 +167,4 @@ async function scaricaDatiDaPython() {
 
 // 5. Avvio e Aggiornamento
 scaricaDatiDaPython();
-setInterval(scaricaDatiDaPython, 180000); // 3 Minuti
+setInterval(scaricaDatiDaPython, 3000000); // 3 Minuti

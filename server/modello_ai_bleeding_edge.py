@@ -32,10 +32,15 @@ CACHE_DURATION = 300
 def ottieni_dati_reali():
     global CACHE_DATI, LAST_CALL
     
-    # Controllo Cache
+    # --- 0. CONTROLLO CACHE INTELLIGENTE ---
     now = time.time()
-    if CACHE_DATI is not None and (now - LAST_CALL < CACHE_DURATION):
-        print("🔄 Restituisco dati dalla CACHE (Dati reali salvati)")
+    # Ho aggiunto il controllo: "and 'pioggia_prob' in CACHE_DATI['live']"
+    # Se la cache esiste MA non ha la pioggia (dati vecchi), la ignora e scarica tutto nuovo.
+    if (CACHE_DATI is not None 
+        and (now - LAST_CALL < CACHE_DURATION) 
+        and 'pioggia_prob' in CACHE_DATI['live']):
+        
+        print("🔄 Restituisco dati dalla CACHE (Dati salvati)")
         return CACHE_DATI
 
     print("🚀 Scarico NUOVI dati Reali + AI...")
@@ -43,29 +48,28 @@ def ottieni_dati_reali():
     # --- 2. RECUPERO DATI METEO (ESTESO A 48H) ---
     oggi = date.today()
     
-    # Scarichiamo dati da ieri a +3 giorni per avere certezza della copertura oraria futura
     str_inizio = (oggi - timedelta(days=1)).strftime("%Y-%m-%d")
     str_fine = (oggi + timedelta(days=3)).strftime("%Y-%m-%d")
 
     try:
-        url = f"https://api.open-meteo.com/v1/forecast?latitude={LAT}&longitude={LON}&start_date={str_inizio}&end_date={str_fine}&daily=temperature_2m_max,precipitation_sum,wind_speed_10m_max,apparent_temperature_max&current=temperature_2m,relative_humidity_2m,wind_speed_10m&hourly=temperature_2m,weather_code&timezone=Europe%2FBerlin"
+        # URL con precipitation_probability
+        url = f"https://api.open-meteo.com/v1/forecast?latitude={LAT}&longitude={LON}&start_date={str_inizio}&end_date={str_fine}&daily=temperature_2m_max,precipitation_sum,wind_speed_10m_max,apparent_temperature_max&current=temperature_2m,relative_humidity_2m,wind_speed_10m&hourly=temperature_2m,weather_code,precipitation_probability&timezone=Europe%2FBerlin"
         
         r = requests.get(url, timeout=10)
         data = r.json()
 
-        # 1. DATI LIVE (Lettura attuale reale)
+        # 1. DATI LIVE
         temp_live = data['current']['temperature_2m']
         umidita_live = data['current']['relative_humidity_2m']
         vento_live = data['current']['wind_speed_10m']
         
-        # Calcolo livello rischio basato SU DATI REALI
         allerta_live = "VERDE"
         if temp_live > 30: allerta_live = "GIALLA"
         if temp_live > 35: allerta_live = "ARANCIONE"
         if temp_live > 38: allerta_live = "ROSSA"
-        if vento_live > 60: allerta_live = "ROSSA" # Aggiunto fattore vento
+        if vento_live > 60: allerta_live = "ROSSA"
 
-        # 2. DATI PER L'AI (CSV Storico/Futuro Reale)
+        # 2. DATI PER L'AI
         df_daily = pd.DataFrame({
             'Data': data['daily']['time'], 
             'T_Max': data['daily']['temperature_2m_max'],
@@ -75,12 +79,12 @@ def ottieni_dati_reali():
         })
         csv_per_ai = df_daily.to_csv(index=False)
 
-        # 3. ELABORAZIONE 48H (Per Grafico e Card)
+        # 3. ELABORAZIONE 48H
         raw_hours = data['hourly']['time']
         raw_temps = data['hourly']['temperature_2m']
         raw_codes = data['hourly']['weather_code']
+        raw_probs = data['hourly']['precipitation_probability'] # Dati Pioggia Orari
 
-        # Troviamo l'indice dell'ora esatta corrente
         ora_corrente_str = datetime.now().strftime("%Y-%m-%dT%H:00")
         start_index = 0
         for i, t in enumerate(raw_hours):
@@ -88,11 +92,15 @@ def ottieni_dati_reali():
                 start_index = i
                 break
         
+        # ESTRAZIONE PROBABILITÀ PIOGGIA ATTUALE (Fix Indice)
+        pioggia_prob_live = 0
+        if start_index < len(raw_probs):
+            pioggia_prob_live = raw_probs[start_index]
+
         lista_card_48h = []
         grafico_labels = []
         grafico_valori = []
 
-        # Prendiamo 12 step da 4 ore = 48 ore esatte di copertura
         for i in range(0, 48, 4): 
             idx = start_index + i
             if idx < len(raw_hours):
@@ -100,15 +108,13 @@ def ottieni_dati_reali():
                 temp_val = raw_temps[idx]
                 code_val = raw_codes[idx]
 
-                # Logica Icone (basata su codici WMO reali)
                 icona = "sun"
                 if code_val > 3: icona = "cloud-sun"
                 if code_val > 45: icona = "cloud-fog"
                 if code_val > 50: icona = "cloud-rain"
                 if code_val > 80: icona = "cloud-lightning"
-                if temp_val > 35: icona = "flame" # Sovrascrive se fa caldissimo
+                if temp_val > 35: icona = "flame"
 
-                # Etichetta giorno dinamica
                 giorno_lbl = dt_obj.strftime("%d/%m")
                 domani = date.today() + timedelta(days=1)
                 dopodomani = date.today() + timedelta(days=2)
@@ -117,7 +123,6 @@ def ottieni_dati_reali():
                 elif dt_obj.date() == dopodomani: giorno_lbl = "Dopodomani"
                 elif dt_obj.date() == date.today(): giorno_lbl = "Oggi"
 
-                # Popola Card
                 lista_card_48h.append({
                     "giorno": giorno_lbl,
                     "ora": dt_obj.strftime("%H:00"),
@@ -125,7 +130,6 @@ def ottieni_dati_reali():
                     "icona": icona
                 })
 
-                # Popola Grafico
                 grafico_labels.append(dt_obj.strftime("%d/%m %H:00"))
                 grafico_valori.append(temp_val)
 
@@ -133,17 +137,16 @@ def ottieni_dati_reali():
         print(f"❌ Errore Meteo: {e}")
         return {"error": str(e)}
 
-    # --- 3. CHIAMATA AI (GROQ) ---
-    print("🤖 Interrogo l'Intelligenza Artificiale sui dati reali...")
+    # --- 3. CHIAMATA AI ---
+    print("🤖 Interrogo l'Intelligenza Artificiale...")
     client = Groq(api_key=API_KEY)
 
     prompt_sicurezza = f"""
     Sei il Sistema A.I.D.A. di Napoli.
     Analizza i dati meteo REALI forniti: {csv_per_ai}
-    Dati attuali rilevati: Temperatura {temp_live}°C, Vento {vento_live} km/h.
+    Dati attuali: Temperatura {temp_live}°C, Vento {vento_live} km/h, Pioggia {pioggia_prob_live}%.
     
     Genera un CONSIGLIO DIRETTO e IMPERATIVO (Max 25 parole) per la popolazione basato ESCLUSIVAMENTE su questi dati.
-    Se non ci sono pericoli, consiglia attività normali.
     Non usare Markdown.
     """
 
@@ -152,7 +155,7 @@ def ottieni_dati_reali():
         completion = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": "Sei un'IA di protezione civile che analizza solo dati reali."},
+                {"role": "system", "content": "Sei un'IA di protezione civile."},
                 {"role": "user", "content": prompt_sicurezza}
             ],
             temperature=0.1, 
@@ -168,12 +171,12 @@ def ottieni_dati_reali():
             "temp": temp_live,
             "umidita": umidita_live,
             "vento": vento_live,
+            "pioggia_prob": pioggia_prob_live, # DATO CORRETTO
             "citta": "Napoli (Stazione)",
             "allerta": allerta_live
         },
         "ia_advice": ia_advice_text,
         "previsioni_48h": lista_card_48h, 
-        
         "mappa": [
             {
                 "nome": "Stazione Rilevamento", 
@@ -183,7 +186,6 @@ def ottieni_dati_reali():
                 "valore": temp_live
             }
         ],
-        
         "grafico": {
             "orari": grafico_labels,
             "valori": grafico_valori
