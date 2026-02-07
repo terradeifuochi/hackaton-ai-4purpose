@@ -167,4 +167,4 @@ async function scaricaDatiDaPython() {
 
 // 5. Avvio e Aggiornamento
 scaricaDatiDaPython();
-setInterval(scaricaDatiDaPython, 3000000); // 3 Minuti
+    setInterval(scaricaDatiDaPython, 180000); // 3 Minuti
