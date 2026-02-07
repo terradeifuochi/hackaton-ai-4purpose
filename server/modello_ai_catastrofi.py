@@ -43,7 +43,6 @@ def ottieni_dati_reali():
 
         # LOGICA ALLERTA REALE
         allerta_live = "VERDE"
-       # --- LOGICA ALLERTA REALE (Sostituisci questo blocco in Python) ---
         if temp_live >= 39 or vento_live >= 80: 
             allerta_live = "ROSSA"
         elif temp_live >= 36 or vento_live >= 60: 
