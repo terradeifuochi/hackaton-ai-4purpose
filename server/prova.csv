@@ -1,0 +1,4 @@
+Versione,Periodo,Anno di rilascio,Pubblicazioni,Griglia,Risoluzione,temperature,precipitation,Note,Dati input,DB Points,DB Points Real Time
+1.0,1991-2021,2022,,ERG5,circa 5 km,"Shepard + optimal detrending (elevation with inversions, topographic index, urban fraction) + topographic distance + station lapse rate classes (primary, secondary, supplemental)",Shepard,,,"\\agroper2-smr\PRAGA-QT\DATA\METEOPOINT\DbPoint_Eraclito_P_1961-2015.db
+\\agroper2-smr\PRAGA-QT\DATA\METEOPOINT\DbPoint_Eraclito91_T_1991-RT.db","\\agroper2-smr\PRAGA-QT\DATA\METEOPOINT\DbPoint_Eraclito_P_2016-RT.db
+\\agroper2-smr\PRAGA-QT\DATA\METEOPOINT\DbPoint_Eraclito91_T_1991-RT.db"
