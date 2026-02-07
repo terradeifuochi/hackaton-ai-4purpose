@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A.I.D.A. | Resilience Dashboard</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        /* Un po' di stile custom per la mappa */
+        #map { height: 100%; width: 100%; border-radius: 1rem; z-index: 0; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen">
+
+    <nav class="border-b border-slate-800 p-4 sticky top-0 z-50 glass">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="bg-orange-600 p-2 rounded-lg">
+                    <i data-lucide="shield-alert" class="text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-black tracking-tighter">A.I.D.A.</h1>
+                    <p class="text-[10px] text-slate-400 uppercase tracking-widest">AI Resilience System</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 px-4 py-1 bg-red-500/10 border border-red-500/20 rounded-full animate-pulse">
+                <div class="w-2 h-2 bg-red-500 rounded-full"></div>
+                <span class="text-xs font-bold text-red-500 uppercase">Live Data: Python Backend</span>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto p-6 space-y-6">
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl">
+                <p class="text-slate-500 text-xs font-bold uppercase">Temperatura</p>
+                <h2 id="temp-val" class="text-4xl font-black mt-1">--°C</h2>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl">
+                <p class="text-slate-500 text-xs font-bold uppercase">Umidità</p>
+                <h2 id="hum-val" class="text-4xl font-black mt-1 text-blue-400">--%</h2>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl">
+                <p class="text-slate-500 text-xs font-bold uppercase">Città Monitorata</p>
+                <h2 id="city-val" class="text-4xl font-black mt-1 text-yellow-500">...</h2>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 p-6 rounded-3xl">
+                <p class="text-slate-500 text-xs font-bold uppercase">Stato Rischio</p>
+                <h2 id="status-val" class="text-4xl font-black mt-1 text-red-500">...</h2>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <div class="lg:col-span-2 h-[500px] bg-slate-900 border border-slate-800 rounded-3xl p-2 relative">
+                <div id="map"></div>
+                <div class="absolute top-4 right-4 bg-slate-900/90 p-3 rounded-xl z-[400] text-xs border border-slate-700">
+                    <p class="font-bold text-slate-300 mb-1">Dati Satellitari:</p>
+                    <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-500"></span> Calore Estremo</div>
+                    <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-orange-500"></span> Calore Medio</div>
+                </div>
+            </div>
+
+            <div class="space-y-6 flex flex-col">
+                
+                <div class="bg-gradient-to-br from-orange-600 to-orange-700 p-6 rounded-3xl text-white shadow-lg relative overflow-hidden flex-1">
+                    <i data-lucide="brain-circuit" class="absolute -bottom-6 -right-6 w-32 h-32 opacity-20"></i>
+                    <h3 class="font-bold text-lg flex items-center gap-2 mb-3">
+                        <i data-lucide="bot" class="w-5 h-5"></i>
+                        Consiglio IA Generativo
+                    </h3>
+                    <p id="ai-text" class="text-orange-50 leading-relaxed font-medium">
+                        In attesa di elaborazione dati dal server Python...
+                    </p>
+                    <button onclick="alert('Allerta inviata alla Protezione Civile!')" class="mt-6 w-full bg-white text-orange-700 font-bold py-3 rounded-xl hover:bg-orange-50 transition shadow-lg">
+                        ATTIVA PIANO B
+                    </button>
+                </div>
+
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-3xl h-[250px]">
+                    <canvas id="hospitalChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // 1. Inizializza Icone
+        lucide.createIcons();
+
+        // 2. Inizializza Mappa (Centrata su Napoli)
+        const map = L.map('map').setView([40.8518, 14.2681], 12);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '© OpenStreetMap, © CartoDB'
+        }).addTo(map);
+
+        // 3. Inizializza Grafico Vuoto
+        const ctx = document.getElementById('hospitalChart').getContext('2d');
+        let myChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Pressione Ospedaliera Prevista',
+                    data: [],
+                    borderColor: '#f97316',
+                    backgroundColor: 'rgba(249, 115, 22, 0.2)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { grid: { color: '#334155' } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+
+        // 4. FUNZIONE CHE PARLA CON PYTHON (La Magia)
+        async function scaricaDatiDaPython() {
+            try {
+                // Chiama il server Python locale
+                const response = await fetch('http://127.0.0.1:8000/api/dati');
+                const data = await response.json();
+
+                console.log("Dati ricevuti da Python:", data);
+
+                // A. Aggiorna Testi
+                document.getElementById('temp-val').innerText = data.meteo.temp + "°C";
+                document.getElementById('hum-val').innerText = data.meteo.umidita + "%";
+                document.getElementById('city-val').innerText = data.meteo.citta;
+                document.getElementById('status-val').innerText = data.meteo.condizione;
+                document.getElementById('ai-text').innerText = '"' + data.ia_advice + '"';
+
+                // B. Aggiorna Grafico
+                myChart.data.labels = data.grafico_ospedali.orari;
+                myChart.data.datasets[0].data = data.grafico_ospedali.valori;
+                myChart.update();
+
+                // C. Aggiorna Mappa (Pulisce i vecchi cerchi e mette i nuovi)
+                map.eachLayer((layer) => {
+                    if (layer instanceof L.Circle) { map.removeLayer(layer); }
+                });
+
+                data.mappa.forEach(zona => {
+                    const color = zona.rischio === 'alto' ? '#ef4444' : '#f59e0b';
+                    L.circle([zona.lat, zona.lng], {
+                        color: color,
+                        fillColor: color,
+                        fillOpacity: 0.5,
+                        radius: 1200
+                    }).addTo(map)
+                    .bindPopup(`<b>${zona.nome}</b><br>Temp: ${zona.valore}°C`);
+                });
+
+            } catch (error) {
+                console.error("Errore collegamento Python:", error);
+                document.getElementById('ai-text').innerText = "⚠️ Errore: Assicurati che 'server.py' sia aperto!";
+            }
+        }
+
+        // Avvia il caricamento dati appena apri la pagina
+        scaricaDatiDaPython();
+
+        // (Opzionale) Aggiorna ogni 5 secondi
+        setInterval(scaricaDatiDaPython, 5000);
+
+    </script>
+</body>
+</html>
