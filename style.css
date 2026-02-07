@@ -1,11 +1,16 @@
 #map { 
     height: 100%; 
     width: 100%; 
-    border-radius: 1rem; 
+    border-radius: 1.5rem; 
     z-index: 0; 
 }
 
 .glass { 
     background: rgba(30, 41, 59, 0.7); 
     backdrop-filter: blur(10px); 
+}
+
+/* Rimuove la scrollbar per un look più pulito */
+body::-webkit-scrollbar {
+    display: none;
 }
