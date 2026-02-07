@@ -131,7 +131,7 @@ async function scaricaDatiDaPython() {
         myChart.update();
 
     } catch (error) {
-        console.error("❌ ERRORE:", error);
+        console.log("❌ ERRORE:", error);
         document.getElementById('ai-text').innerText = "⚠️ Server Offline";
         document.getElementById('ai-text').classList.add("text-red-500");
     }
@@ -139,4 +139,4 @@ async function scaricaDatiDaPython() {
 
 // Avvio
 scaricaDatiDaPython();
-setInterval(scaricaDatiDaPython, 30000);
+setInterval(scaricaDatiDaPython, 300000);

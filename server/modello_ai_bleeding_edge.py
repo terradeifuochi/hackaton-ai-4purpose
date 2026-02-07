@@ -2,7 +2,7 @@ import os
 import requests
 import pandas as pd
 from datetime import date, timedelta, datetime
-from groq import Groq 
+from groq import Groq, RateLimitError
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
@@ -102,9 +102,13 @@ def ottieni_dati_reali():
                 temperature=0.1
             )
             ia_text = completion.choices[0].message.content
+        except RateLimitError as e:
+            print(f"⚠️ RATE LIMIT RAGGIUNTO: {e}")
+            ia_text = "Troppe richieste. Riprova tra un momento."
         except:
+            print(f"❌ ERRORE CRITICO AI: {str(e)}")
             ia_text = "Monitoraggio attivo. Seguire le norme di prudenza."
-
+            
         return {
             "live": {
                 "temp": temp_live,
