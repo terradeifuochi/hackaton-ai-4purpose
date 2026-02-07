@@ -12,10 +12,10 @@ const ctx = document.getElementById('hospitalChart').getContext('2d');
 let myChart = new Chart(ctx, {
     type: 'line',
     data: {
-        labels: [], // Si riempirà coi dati Python
+        labels: [],
         datasets: [{
             label: 'Temp. Prevista (°C)',
-            data: [], // Si riempirà coi dati Python
+            data: [],
             borderColor: '#a855f7', // Viola AIDA
             backgroundColor: 'rgba(168, 85, 247, 0.2)',
             borderWidth: 3,
@@ -30,24 +30,17 @@ let myChart = new Chart(ctx, {
         maintainAspectRatio: false,
         plugins: { legend: { display: false } },
         scales: {
-            y: { 
-                grid: { color: '#334155' }, 
-                ticks: { color: '#94a3b8' } 
-            },
-            x: { 
-                grid: { display: false }, 
-                ticks: { color: '#94a3b8' } 
-            }
+            y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+            x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
         }
     }
 });
 
-// 4. Funzione Principale di Collegamento al Server
+// 4. Funzione Principale
 async function scaricaDatiDaPython() {
     console.log("🚀 Richiedo dati aggiornati al server Python...");
     
     try {
-        // Chiamata al server locale
         const response = await fetch('http://127.0.0.1:8000/api/dati');
         
         if (!response.ok) {
@@ -58,41 +51,81 @@ async function scaricaDatiDaPython() {
         console.log("📦 Dati ricevuti:", data);
 
         // --- A. AGGIORNAMENTO DATI LIVE ---
-        // Nota: uso 'data.live' perché così l'abbiamo chiamato in Python
         document.getElementById('temp-val').innerText = data.live.temp + "°C";
         document.getElementById('hum-val').innerText = data.live.umidita + "%";
         
-        // Verifica se l'elemento vento esiste nell'HTML prima di aggiornarlo
         const windEl = document.getElementById('wind-val');
         if(windEl) windEl.innerText = data.live.vento + " km/h";
         
         // --- B. AGGIORNAMENTO TESTO AI ---
         document.getElementById('ai-text').innerText = '"' + data.ia_advice + '"';
 
-        // --- C. AGGIORNAMENTO MAPPA ---
+        // --- C. AGGIORNAMENTO MAPPA (COLORI E HOVER) ---
+        
         // Rimuove i vecchi cerchi
         map.eachLayer((layer) => {
             if (layer instanceof L.Circle) { map.removeLayer(layer); }
         });
 
-        // Aggiunge i nuovi cerchi dalle coordinate Python
+        // Genera i nuovi cerchi
         data.mappa.forEach(zona => {
-            const color = zona.rischio === 'alto' ? '#ef4444' : '#f59e0b'; // Rosso o Arancio
-            L.circle([zona.lat, zona.lng], {
+            
+            // 1. Logica Colori Avanzata
+            let color = '#22c55e'; // Default: VERDE (Sicuro)
+            let description = "Situazione stabile. Nessun rischio rilevato."; // Default descrizione
+            
+            const rischioLower = zona.rischio.toLowerCase();
+
+            if (rischioLower.includes('rosso') || rischioLower.includes('alto')) {
+                color = '#ef4444'; // Rosso
+                description = `PERICOLO: Temperature critiche (${zona.valore}°C). Rischio colpi di calore.`;
+            } 
+            else if (rischioLower.includes('arancione') || rischioLower.includes('medio')) {
+                color = '#f97316'; // Arancione
+                description = `ATTENZIONE: Calore intenso (${zona.valore}°C). Limitare esposizione.`;
+            }
+            else if (rischioLower.includes('giallo') || rischioLower.includes('gialla')) {
+                color = '#eab308'; // Giallo
+                description = `PREALLERTA: Temperature in aumento.`;
+            }
+            else if (rischioLower.includes('blu')) {
+                color = '#3b82f6'; // Blu
+                description = `FREDDO/PIOGGIA: Temperatura bassa o precipitazioni in corso.`;
+            }
+            else {
+                // Rimane Verde
+                color = '#22c55e';
+                description = `SICUREZZA: Parametri nella norma (${zona.valore}°C).`;
+            }
+
+            // 2. Creazione Cerchio
+            const circle = L.circle([zona.lat, zona.lng], {
                 color: color, 
                 fillColor: color, 
-                fillOpacity: 0.5, 
+                fillOpacity: 0.6, 
                 radius: 1500
-            }).addTo(map)
-            .bindPopup(`<b>${zona.nome}</b><br>Temp: ${zona.valore}°C<br>Rischio: ${zona.rischio.toUpperCase()}`);
+            }).addTo(map);
+
+            // 3. TOOLTIP AL PASSAGGIO DEL MOUSE (Hover)
+            circle.bindTooltip(`
+                <div style="text-align: center; color: #1e293b;">
+                    <strong style="font-size: 14px; color: ${color}">${zona.nome}</strong><br>
+                    <span style="font-weight:bold; font-size:10px; text-transform:uppercase;">STATUS: ${zona.rischio}</span><br>
+                    <span style="font-size: 11px;">${description}</span>
+                </div>
+            `, {
+                permanent: false, // Appare solo al passaggio del mouse
+                direction: 'top',
+                className: 'custom-tooltip', // Classe CSS opzionale
+                opacity: 0.95
+            });
         });
 
         // --- D. AGGIORNAMENTO CARD PREVISIONI 48H ---
         const forecastContainer = document.getElementById('forecast-container');
-        forecastContainer.innerHTML = ''; // Pulisce le card vecchie
+        forecastContainer.innerHTML = ''; 
         
         data.previsioni_48h.forEach(prev => {
-            // Logica colori: se > 30 gradi diventa rossa
             let isHot = prev.temp >= 30;
             let borderClass = isHot ? 'border-red-500 bg-red-500/10' : 'border-slate-700 bg-slate-800';
             let iconColor = isHot ? 'text-red-500' : 'text-yellow-400';
@@ -108,7 +141,6 @@ async function scaricaDatiDaPython() {
             forecastContainer.innerHTML += html;
         });
         
-        // Ricarica le icone dentro le nuove card
         lucide.createIcons();
 
         // --- E. AGGIORNAMENTO GRAFICO ---
@@ -123,8 +155,6 @@ async function scaricaDatiDaPython() {
     }
 }
 
-// 5. Avvio
+// 5. Avvio e Aggiornamento
 scaricaDatiDaPython();
-
-
-setInterval(scaricaDatiDaPython, 180000);
+setInterval(scaricaDatiDaPython, 180000); // 3 Minuti

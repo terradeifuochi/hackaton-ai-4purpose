@@ -14,7 +14,7 @@ LAT, LON = 40.8518, 14.2681
 
 app = FastAPI()
 
-# Configurazione CORS (Per far parlare il server con il sito)
+# Configurazione CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -23,10 +23,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Cache semplice per non finire i token dell'AI subito
+# Cache (5 minuti)
 CACHE_DATI = None
 LAST_CALL = 0
-CACHE_DURATION = 300 # 5 minuti di cache
+CACHE_DURATION = 300 
 
 @app.get("/api/dati")
 def ottieni_dati_reali():
@@ -35,38 +35,37 @@ def ottieni_dati_reali():
     # Controllo Cache
     now = time.time()
     if CACHE_DATI is not None and (now - LAST_CALL < CACHE_DURATION):
-        print("🔄 Restituisco dati dalla CACHE (Risparmio API)")
+        print("🔄 Restituisco dati dalla CACHE (Dati reali salvati)")
         return CACHE_DATI
 
     print("🚀 Scarico NUOVI dati Reali + AI...")
 
     # --- 2. RECUPERO DATI METEO (ESTESO A 48H) ---
     oggi = date.today()
-    str_oggi = oggi.strftime("%Y-%m-%d")
     
-    # Prendiamo dati da ieri a +3 giorni per avere copertura totale oraria
+    # Scarichiamo dati da ieri a +3 giorni per avere certezza della copertura oraria futura
     str_inizio = (oggi - timedelta(days=1)).strftime("%Y-%m-%d")
     str_fine = (oggi + timedelta(days=3)).strftime("%Y-%m-%d")
 
     try:
-        # Aggiungiamo 'hourly' per popolare grafici e card a 48h
         url = f"https://api.open-meteo.com/v1/forecast?latitude={LAT}&longitude={LON}&start_date={str_inizio}&end_date={str_fine}&daily=temperature_2m_max,precipitation_sum,wind_speed_10m_max,apparent_temperature_max&current=temperature_2m,relative_humidity_2m,wind_speed_10m&hourly=temperature_2m,weather_code&timezone=Europe%2FBerlin"
         
         r = requests.get(url, timeout=10)
         data = r.json()
 
-        # 1. DATI LIVE (Per la sezione in alto)
+        # 1. DATI LIVE (Lettura attuale reale)
         temp_live = data['current']['temperature_2m']
         umidita_live = data['current']['relative_humidity_2m']
         vento_live = data['current']['wind_speed_10m']
         
-        # Calcolo livello allerta basico
+        # Calcolo livello rischio basato SU DATI REALI
         allerta_live = "VERDE"
         if temp_live > 30: allerta_live = "GIALLA"
         if temp_live > 35: allerta_live = "ARANCIONE"
         if temp_live > 38: allerta_live = "ROSSA"
+        if vento_live > 60: allerta_live = "ROSSA" # Aggiunto fattore vento
 
-        # 2. DATI PER L'AI (Creiamo il CSV come nel tuo script nuovo)
+        # 2. DATI PER L'AI (CSV Storico/Futuro Reale)
         df_daily = pd.DataFrame({
             'Data': data['daily']['time'], 
             'T_Max': data['daily']['temperature_2m_max'],
@@ -77,12 +76,11 @@ def ottieni_dati_reali():
         csv_per_ai = df_daily.to_csv(index=False)
 
         # 3. ELABORAZIONE 48H (Per Grafico e Card)
-        # Dobbiamo estrarre i dati orari specifici per le prossime ore
         raw_hours = data['hourly']['time']
         raw_temps = data['hourly']['temperature_2m']
         raw_codes = data['hourly']['weather_code']
 
-        # Troviamo l'indice dell'ora attuale
+        # Troviamo l'indice dell'ora esatta corrente
         ora_corrente_str = datetime.now().strftime("%Y-%m-%dT%H:00")
         start_index = 0
         for i, t in enumerate(raw_hours):
@@ -90,29 +88,34 @@ def ottieni_dati_reali():
                 start_index = i
                 break
         
-        # Generiamo le liste per il JSON
         lista_card_48h = []
         grafico_labels = []
         grafico_valori = []
 
-        # Prendiamo 8 step (ogni 4 ore) per coprire circa 32-40 ore
-        for i in range(0, 32, 4): 
+        # Prendiamo 12 step da 4 ore = 48 ore esatte di copertura
+        for i in range(0, 48, 4): 
             idx = start_index + i
             if idx < len(raw_hours):
                 dt_obj = datetime.strptime(raw_hours[idx], "%Y-%m-%dT%H:%M")
                 temp_val = raw_temps[idx]
                 code_val = raw_codes[idx]
 
-                # Icona semplificata
+                # Logica Icone (basata su codici WMO reali)
                 icona = "sun"
                 if code_val > 3: icona = "cloud-sun"
+                if code_val > 45: icona = "cloud-fog"
                 if code_val > 50: icona = "cloud-rain"
-                if temp_val > 35: icona = "flame"
+                if code_val > 80: icona = "cloud-lightning"
+                if temp_val > 35: icona = "flame" # Sovrascrive se fa caldissimo
 
-                # Etichetta giorno (Domani/Dopodomani o nome giorno)
+                # Etichetta giorno dinamica
                 giorno_lbl = dt_obj.strftime("%d/%m")
-                if dt_obj.date() == date.today() + timedelta(days=1): giorno_lbl = "Domani"
-                elif dt_obj.date() == date.today() + timedelta(days=2): giorno_lbl = "Dopodomani"
+                domani = date.today() + timedelta(days=1)
+                dopodomani = date.today() + timedelta(days=2)
+                
+                if dt_obj.date() == domani: giorno_lbl = "Domani"
+                elif dt_obj.date() == dopodomani: giorno_lbl = "Dopodomani"
+                elif dt_obj.date() == date.today(): giorno_lbl = "Oggi"
 
                 # Popola Card
                 lista_card_48h.append({
@@ -123,7 +126,7 @@ def ottieni_dati_reali():
                 })
 
                 # Popola Grafico
-                grafico_labels.append(dt_obj.strftime("%H:00"))
+                grafico_labels.append(dt_obj.strftime("%d/%m %H:00"))
                 grafico_valori.append(temp_val)
 
     except Exception as e:
@@ -131,15 +134,16 @@ def ottieni_dati_reali():
         return {"error": str(e)}
 
     # --- 3. CHIAMATA AI (GROQ) ---
-    print("🤖 Interrogo l'Intelligenza Artificiale...")
+    print("🤖 Interrogo l'Intelligenza Artificiale sui dati reali...")
     client = Groq(api_key=API_KEY)
 
     prompt_sicurezza = f"""
     Sei il Sistema A.I.D.A. di Napoli.
-    Analizza questi dati: {csv_per_ai}
-    Dati attuali: {temp_live}°C.
+    Analizza i dati meteo REALI forniti: {csv_per_ai}
+    Dati attuali rilevati: Temperatura {temp_live}°C, Vento {vento_live} km/h.
     
-    Genera un CONSIGLIO DIRETTO e IMPERATIVO (Max 25 parole) per la popolazione basato sui pericoli (Caldo, Vento o Pioggia) dei prossimi 2 giorni.
+    Genera un CONSIGLIO DIRETTO e IMPERATIVO (Max 25 parole) per la popolazione basato ESCLUSIVAMENTE su questi dati.
+    Se non ci sono pericoli, consiglia attività normali.
     Non usare Markdown.
     """
 
@@ -148,7 +152,7 @@ def ottieni_dati_reali():
         completion = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": "Sei un'IA di protezione civile."},
+                {"role": "system", "content": "Sei un'IA di protezione civile che analizza solo dati reali."},
                 {"role": "user", "content": prompt_sicurezza}
             ],
             temperature=0.1, 
@@ -156,25 +160,30 @@ def ottieni_dati_reali():
         ia_advice_text = completion.choices[0].message.content
     except Exception as e:
         print(f"❌ Errore AI: {e}")
-        ia_advice_text = "⚠️ Servizio AI momentaneamente non disponibile. Consultare bollettini ufficiali."
+        ia_advice_text = "⚠️ Servizio AI momentaneamente non disponibile."
 
-    # --- 4. COSTRUZIONE RISPOSTA JSON (FORMATO VECCHIO SERVER) ---
+    # --- 4. COSTRUZIONE RISPOSTA JSON ---
     response_payload = {
         "live": {
             "temp": temp_live,
             "umidita": umidita_live,
             "vento": vento_live,
-            "citta": "Napoli",
+            "citta": "Napoli (Stazione)",
             "allerta": allerta_live
         },
         "ia_advice": ia_advice_text,
-        "previsioni_48h": lista_card_48h, # Ora contiene dati reali spaziati nel tempo
+        "previsioni_48h": lista_card_48h, 
+        
         "mappa": [
-            # Napoli è Reale, gli altri sono simulati basandosi su Napoli per popolare la mappa
-            {"nome": "Napoli Centro", "lat": 40.8518, "lng": 14.2681, "rischio": allerta_live.lower(), "valore": temp_live},
-            {"nome": "Vomero (Collinare)", "lat": 40.8425, "lng": 14.2311, "rischio": "medio", "valore": round(temp_live - 2, 1)},
-            {"nome": "Zona Industriale", "lat": 40.8550, "lng": 14.3000, "rischio": "alto", "valore": round(temp_live + 1, 1)}
+            {
+                "nome": "Stazione Rilevamento", 
+                "lat": LAT, 
+                "lng": LON, 
+                "rischio": allerta_live.lower(), 
+                "valore": temp_live
+            }
         ],
+        
         "grafico": {
             "orari": grafico_labels,
             "valori": grafico_valori
