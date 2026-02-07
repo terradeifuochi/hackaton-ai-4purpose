@@ -11,14 +11,9 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
     <script src="https://unpkg.com/lucide@latest"></script>
 
-    <style>
-        /* Un po' di stile custom per la mappa */
-        #map { height: 100%; width: 100%; border-radius: 1rem; z-index: 0; }
-        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans min-h-screen">
 
@@ -35,7 +30,7 @@
             </div>
             <div class="flex items-center gap-2 px-4 py-1 bg-red-500/10 border border-red-500/20 rounded-full animate-pulse">
                 <div class="w-2 h-2 bg-red-500 rounded-full"></div>
-                <span class="text-xs font-bold text-red-500 uppercase">Live Data: Python Backend</span>
+                <span class="text-xs font-bold text-red-500 uppercase">Live Data</span>
             </div>
         </div>
     </nav>
@@ -81,7 +76,7 @@
                         Consiglio IA Generativo
                     </h3>
                     <p id="ai-text" class="text-orange-50 leading-relaxed font-medium">
-                        In attesa di elaborazione dati dal server Python...
+                        In attesa di elaborazione dati...
                     </p>
                     <button onclick="alert('Allerta inviata alla Protezione Civile!')" class="mt-6 w-full bg-white text-orange-700 font-bold py-3 rounded-xl hover:bg-orange-50 transition shadow-lg">
                         ATTIVA PIANO B
@@ -95,92 +90,6 @@
         </div>
     </main>
 
-    <script>
-        // 1. Inizializza Icone
-        lucide.createIcons();
-
-        // 2. Inizializza Mappa (Centrata su Napoli)
-        const map = L.map('map').setView([40.8518, 14.2681], 12);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '© OpenStreetMap, © CartoDB'
-        }).addTo(map);
-
-        // 3. Inizializza Grafico Vuoto
-        const ctx = document.getElementById('hospitalChart').getContext('2d');
-        let myChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: [{
-                    label: 'Pressione Ospedaliera Prevista',
-                    data: [],
-                    borderColor: '#f97316',
-                    backgroundColor: 'rgba(249, 115, 22, 0.2)',
-                    borderWidth: 3,
-                    fill: true,
-                    tension: 0.4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    y: { grid: { color: '#334155' } },
-                    x: { grid: { display: false } }
-                }
-            }
-        });
-
-        // 4. FUNZIONE CHE PARLA CON PYTHON (La Magia)
-        async function scaricaDatiDaPython() {
-            try {
-                // Chiama il server Python locale
-                const response = await fetch('http://127.0.0.1:8000/api/dati');
-                const data = await response.json();
-
-                console.log("Dati ricevuti da Python:", data);
-
-                // A. Aggiorna Testi
-                document.getElementById('temp-val').innerText = data.meteo.temp + "°C";
-                document.getElementById('hum-val').innerText = data.meteo.umidita + "%";
-                document.getElementById('city-val').innerText = data.meteo.citta;
-                document.getElementById('status-val').innerText = data.meteo.condizione;
-                document.getElementById('ai-text').innerText = '"' + data.ia_advice + '"';
-
-                // B. Aggiorna Grafico
-                myChart.data.labels = data.grafico_ospedali.orari;
-                myChart.data.datasets[0].data = data.grafico_ospedali.valori;
-                myChart.update();
-
-                // C. Aggiorna Mappa (Pulisce i vecchi cerchi e mette i nuovi)
-                map.eachLayer((layer) => {
-                    if (layer instanceof L.Circle) { map.removeLayer(layer); }
-                });
-
-                data.mappa.forEach(zona => {
-                    const color = zona.rischio === 'alto' ? '#ef4444' : '#f59e0b';
-                    L.circle([zona.lat, zona.lng], {
-                        color: color,
-                        fillColor: color,
-                        fillOpacity: 0.5,
-                        radius: 1200
-                    }).addTo(map)
-                    .bindPopup(`<b>${zona.nome}</b><br>Temp: ${zona.valore}°C`);
-                });
-
-            } catch (error) {
-                console.error("Errore collegamento Python:", error);
-                document.getElementById('ai-text').innerText = "⚠️ Errore: Assicurati che 'server.py' sia aperto!";
-            }
-        }
-
-        // Avvia il caricamento dati appena apri la pagina
-        scaricaDatiDaPython();
-
-        // (Opzionale) Aggiorna ogni 5 secondi
-        setInterval(scaricaDatiDaPython, 5000);
-
-    </script>
+    <script src="script.js"></script>
 </body>
 </html>
