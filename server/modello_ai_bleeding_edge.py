@@ -104,13 +104,14 @@ def ottieni_dati_reali():
             completion = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.1
+                temperature=0.1,
+                timeout=5.0
             )
             ia_text = completion.choices[0].message.content
         except RateLimitError as e:
             print(f"⚠️ RATE LIMIT RAGGIUNTO: {e}")
             ia_text = "Troppe richieste. Riprova tra un momento."
-        except:
+        except Exception as e:
             print(f"❌ ERRORE CRITICO AI: {str(e)}")
             ia_text = "Monitoraggio attivo. Seguire le norme di prudenza."
             

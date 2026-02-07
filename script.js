@@ -41,7 +41,8 @@ async function scaricaDatiDaPython() {
     console.log("🚀 Richiedo dati aggiornati...");
     
     try {
-        const response = await fetch('http://127.0.0.1:8000/api/dati');
+        // Aggiungiamo un timestamp alla fine dell'URL per "ingannare" la cache
+        const response = await fetch(`http://127.0.0.1:8000/api/dati?t=${new Date().getTime()}`);        
         if (!response.ok) throw new Error(`Errore Server: ${response.status}`);
         
         const data = await response.json();
@@ -188,8 +189,10 @@ async function scaricaDatiDaPython() {
         lucide.createIcons();
 
         // --- D. GRAFICO ---
+// --- D. GRAFICO ---
+// ERRORE PRECEDENTE: myChart.datasets[0].data (mancava .data prima di datasets)
         myChart.data.labels = data.grafico.orari;
-        myChart.datasets[0].data = data.grafico.valori;
+        myChart.data.datasets[0].data = data.grafico.valori; // Corretto: aggiunto .data.
         myChart.update();
 
     } catch (error) {
@@ -200,6 +203,6 @@ async function scaricaDatiDaPython() {
     }
 }
 
-// Avvio e aggiornamento ogni 5 secondi
+// Avvio e aggiornamento ogni 30 secondi
 scaricaDatiDaPython();
-setInterval(scaricaDatiDaPython, 5000);
+setInterval(scaricaDatiDaPython, 30000);
