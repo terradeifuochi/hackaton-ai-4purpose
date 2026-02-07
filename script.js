@@ -68,4 +68,4 @@ async function scaricaDatiDaPython() {
 }
 
 scaricaDatiDaPython();
-setInterval(scaricaDatiDaPython, 180000);
+// setInterval(scaricaDatiDaPython, 180000);
