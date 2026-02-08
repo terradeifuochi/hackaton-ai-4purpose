@@ -1,13 +1,10 @@
-// 1. Inizializza le icone al caricamento
 lucide.createIcons();
 
-// 2. Configurazione Mappa (Leaflet)
 const map = L.map('map').setView([40.8518, 14.2681], 11);
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     attribution: '© OpenStreetMap, © CartoDB'
 }).addTo(map);
 
-// 3. Configurazione Grafico
 const ctx = document.getElementById('hospitalChart').getContext('2d');
 let myChart = new Chart(ctx, {
     type: 'line',
@@ -36,18 +33,15 @@ let myChart = new Chart(ctx, {
     }
 });
 
-// 4. Funzione Principale
 async function scaricaDatiDaPython() {
     console.log("🚀 Richiedo dati aggiornati...");
     
     try {
-        // Aggiungiamo un timestamp alla fine dell'URL per "ingannare" la cache
         const response = await fetch(`http://127.0.0.1:8000/api/dati?t=${new Date().getTime()}`);        
         if (!response.ok) throw new Error(`Errore Server: ${response.status}`);
         
         const data = await response.json();
         
-        // Gestione errore specifico dal Backend (es. CSV non trovato)
         if (data.error) {
             console.error("⚠️ Errore dal server Python:", data.error);
             const aiEl = document.getElementById('ai-text');
@@ -58,11 +52,9 @@ async function scaricaDatiDaPython() {
         
         console.log("📦 Dati ricevuti:", data);
 
-        // --- A. DATI LIVE & COLORI DINAMICI ---
         const allerta = data.live.allerta.toLowerCase();
         const tempEl = document.getElementById('temp-val');
         
-        // Reset classi colore temperatura
         tempEl.className = "text-5xl font-black mt-1"; 
         
         if (allerta.includes('ross')) {
@@ -86,13 +78,12 @@ async function scaricaDatiDaPython() {
         
         const aiTextEl = document.getElementById('ai-text');
         aiTextEl.innerText = '"' + data.ia_advice + '"';
-        aiTextEl.style.color = ""; // Reset colore errore
+        aiTextEl.style.color = ""; 
 
-        // --- B. MAPPA (PALLINO DINAMICO) ---
         map.eachLayer((layer) => { if (layer instanceof L.Circle) map.removeLayer(layer); });
 
         data.mappa.forEach(zona => {
-            let color = '#22c55e'; // Verde
+            let color = '#22c55e'; 
             let description = "Situazione stabile.";
             let radius = 1500;
 
@@ -118,7 +109,6 @@ async function scaricaDatiDaPython() {
                 weight: 2
             }).addTo(map);
 
-            // Animazione pulse per allerta alta
             if (allerta.includes('ross') || allerta.includes('aranc')) {
                 const el = circle.getElement();
                 if(el) el.classList.add('animate-pulse');
@@ -133,7 +123,6 @@ async function scaricaDatiDaPython() {
             `, { permanent: false, direction: 'top', className: 'custom-tooltip', opacity: 0.95 });
         });
 
-        // --- C. AGGIORNAMENTO CARD PREVISIONI 48H (LOGICA LAVA) ---
         const forecastContainer = document.getElementById('forecast-container');
         forecastContainer.innerHTML = ''; 
 
@@ -188,11 +177,8 @@ async function scaricaDatiDaPython() {
 
         lucide.createIcons();
 
-        // --- D. GRAFICO ---
-// --- D. GRAFICO ---
-// ERRORE PRECEDENTE: myChart.datasets[0].data (mancava .data prima di datasets)
         myChart.data.labels = data.grafico.orari;
-        myChart.data.datasets[0].data = data.grafico.valori; // Corretto: aggiunto .data.
+        myChart.data.datasets[0].data = data.grafico.valori; 
         myChart.update();
 
     } catch (error) {
@@ -203,6 +189,5 @@ async function scaricaDatiDaPython() {
     }
 }
 
-// Avvio e aggiornamento ogni 30 secondi
 scaricaDatiDaPython();
 setInterval(scaricaDatiDaPython, 30000);

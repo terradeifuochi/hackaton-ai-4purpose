@@ -14,3 +14,16 @@
 body::-webkit-scrollbar {
     display: none;
 }
+.glass { background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(10px); }
+        
+.custom-tooltip {
+    background-color: rgba(255, 255, 255, 0.95);
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    padding: 8px;
+}
+.leaflet-tooltip-top:before { border-top-color: rgba(255, 255, 255, 0.95); }
+
+body::-webkit-scrollbar { display: none; }

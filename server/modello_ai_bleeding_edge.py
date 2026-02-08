@@ -6,11 +6,14 @@ from groq import Groq, RateLimitError
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
-import time
+from dotenv import load_dotenv 
+# Carica le variabili dal file .env
+load_dotenv()
 
-# --- 1. CONFIGURAZIONE ---
-API_KEY = "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" 
-LAT, LON = 40.8518, 14.2681 
+# --- CONFIGURAZIONE DATI ---
+API_KEY = os.getenv("GROQ_API_KEY")
+LAT = float(os.getenv("LATITUDINE"))
+LON = float(os.getenv("LONGITUDINE"))
 
 app = FastAPI()
 
@@ -36,12 +39,10 @@ def ottieni_dati_reali():
         r = requests.get(url, timeout=10)
         data = r.json()
 
-        # DATI LIVE
         temp_live = data['current']['temperature_2m']
         umidita_live = data['current']['relative_humidity_2m']
         vento_live = data['current']['wind_speed_10m']
         
-        # LOGICA ALLERTA REALE
         allerta_live = "VERDE"
         if temp_live >= 39 or vento_live >= 80: 
             allerta_live = "ROSSA"
@@ -96,7 +97,6 @@ def ottieni_dati_reali():
                 grafico_labels.append(dt_obj.strftime("%H:00"))
                 grafico_valori.append(raw_temps[idx])
 
-        # CHIAMATA AI
         client = Groq(api_key=API_KEY)
         prompt = f"Meteo Napoli: {temp_live}C, Vento {vento_live}kmh, Pioggia {pioggia_prob_live}%. Dai un consiglio di sicurezza di 15 parole."
         
@@ -134,4 +134,7 @@ def ottieni_dati_reali():
         return {"error": str(e)}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    # Parametri del server caricati da .env
+    host = os.getenv("SERVER_HOST", "127.0.0.1")
+    port = int(os.getenv("SERVER_PORT", 8000))
+    uvicorn.run(app, host=host, port=port)
